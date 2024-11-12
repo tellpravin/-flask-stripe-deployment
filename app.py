@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import stripe
 import requests
@@ -81,9 +81,21 @@ def send_whatsapp_message(phone_number, customer_name, order_number, total, paym
             ]
         }
     }
-    response = requests.post('https://api.interakt.ai/v1/public/message/', headers=headers, json=payload)
-    response.raise_for_status()
-    return True
+    try:
+        response = requests.post('https://api.interakt.ai/v1/public/message/', headers=headers, json=payload)
+        response.raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to send WhatsApp message: {e}")
+        return False
+
+@app.route('/')
+def home():
+    return "Welcome to the Flask Stripe App!"  
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  
 
 @app.route('/api/products', methods=['GET'])
 def get_products():
@@ -115,13 +127,14 @@ def process_order():
         "checkout_url": checkout_url
     })
 
+
 @app.route('/success')
 def success():
-    return render_template('success.html')
+    return "Payment successful."
 
 @app.route('/cancel')
 def cancel():
-    return render_template('cancel.html')
+    return "Payment cancelled."
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
