@@ -38,10 +38,11 @@ def calculate_total(product_id, quantity, location):
     if not product:
         return None, None
     product_price = int(product.get('price', 0))
+    product_name = product.get('title', 'Product Name not available')
     subtotal = product_price * quantity
     delivery_charge = DELIVERY_CHARGES.get(location, 0)
     total = subtotal + delivery_charge
-    return total, product.get('title', 'Product Name not available')
+    return total, product_name
 
 def create_stripe_checkout_session(total, product_name, quantity):
     checkout_session = stripe.checkout.Session.create(
@@ -114,6 +115,8 @@ def process_order():
     total, product_name = calculate_total(product_id, quantity, location)
     if total is None:
         return jsonify({"error": "Invalid product ID"}), 400
+
+    print(f"DEBUG: Product ID: {product_id}, Product Name: {product_name}, Total: {total}")
 
     checkout_url = create_stripe_checkout_session(total * 100, product_name, quantity)
     order_number = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
