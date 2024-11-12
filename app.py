@@ -37,12 +37,10 @@ def calculate_total(product_id, quantity, location):
     product = PRODUCT_CATALOG.get(product_id)
     if not product:
         return None, None
-    product_price = int(product.get('price', 0))
-    product_name = product.get('title', 'Product Name not available')
-    subtotal = product_price * quantity
+    subtotal = int(product['price']) * quantity
     delivery_charge = DELIVERY_CHARGES.get(location, 0)
     total = subtotal + delivery_charge
-    return total, product_name
+    return total, product['title']
 
 def create_stripe_checkout_session(total, product_name, quantity):
     checkout_session = stripe.checkout.Session.create(
@@ -93,11 +91,11 @@ def send_whatsapp_message(phone_number, customer_name, order_number, total, paym
 
 @app.route('/')
 def home():
-    return "Welcome to the Flask Stripe App!"  
+    return "Welcome to the Flask Stripe App!"
 
 @app.route('/favicon.ico')
 def favicon():
-    return '', 204  
+    return '', 204
 
 @app.route('/api/products', methods=['GET'])
 def get_products():
@@ -112,11 +110,16 @@ def process_order():
     phone = data['phone']
     customer_name = data['customer_name']
 
+    print("Product Catalog:", PRODUCT_CATALOG)
+    print("Product ID:", product_id)
+    print("Product Data:", PRODUCT_CATALOG.get(product_id, "Product not found"))
+
     total, product_name = calculate_total(product_id, quantity, location)
     if total is None:
         return jsonify({"error": "Invalid product ID"}), 400
 
     checkout_url = create_stripe_checkout_session(total * 100, product_name, quantity)
+
     order_number = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     send_whatsapp_message(phone, customer_name, order_number, total, checkout_url)
 
