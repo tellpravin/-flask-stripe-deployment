@@ -36,11 +36,12 @@ DELIVERY_CHARGES = {
 def calculate_total(product_id, quantity, location):
     product = PRODUCT_CATALOG.get(product_id)
     if not product:
-        return None
-    subtotal = int(product['price']) * quantity
+        return None, None
+    product_price = int(product.get('price', 0))
+    subtotal = product_price * quantity
     delivery_charge = DELIVERY_CHARGES.get(location, 0)
     total = subtotal + delivery_charge
-    return total
+    return total, product.get('title', 'Product Name not available')
 
 def create_stripe_checkout_session(total, product_name, quantity):
     checkout_session = stripe.checkout.Session.create(
@@ -110,13 +111,11 @@ def process_order():
     phone = data['phone']
     customer_name = data['customer_name']
 
-    total = calculate_total(product_id, quantity, location)
+    total, product_name = calculate_total(product_id, quantity, location)
     if total is None:
         return jsonify({"error": "Invalid product ID"}), 400
 
-    product_name = PRODUCT_CATALOG[product_id]['title']
     checkout_url = create_stripe_checkout_session(total * 100, product_name, quantity)
-
     order_number = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     send_whatsapp_message(phone, customer_name, order_number, total, checkout_url)
 
@@ -126,7 +125,6 @@ def process_order():
         "total": total,
         "checkout_url": checkout_url
     })
-
 
 @app.route('/success')
 def success():
