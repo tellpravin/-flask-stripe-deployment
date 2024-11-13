@@ -5,6 +5,8 @@ import requests
 import pandas as pd
 from datetime import datetime
 import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,7 +20,18 @@ WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET')
 stripe.api_key = STRIPE_API_KEY
 
 def load_catalog():
-    catalog_df = pd.read_csv('product_catalog.csv')
+    scope = ["https://spreadsheets.google.com/feeds", 
+             "https://www.googleapis.com/auth/spreadsheets", 
+             "https://www.googleapis.com/auth/drive.file", 
+             "https://www.googleapis.com/auth/drive"]
+
+    creds_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+    client = gspread.authorize(creds)
+
+    sheet = client.open("WA Catalog | Vocca | Commerce Integrated").sheet1
+    data = sheet.get_all_records()
+    catalog_df = pd.DataFrame(data)
     return catalog_df.set_index('ID').to_dict(orient='index')
 
 PRODUCT_CATALOG = load_catalog()
