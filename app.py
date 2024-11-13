@@ -1,25 +1,39 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import stripe
 import requests
 import pandas as pd
 from datetime import datetime
-import os
 import gspread
 import json
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
+# Stripe API key
 STRIPE_API_KEY = os.getenv('STRIPE_API_KEY')
 INTERAKT_API_KEY = os.getenv('INTERAKT_API_KEY')
 WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET')
 stripe.api_key = STRIPE_API_KEY
 
+# Delivery charges based on location
+DELIVERY_CHARGES = {
+    "Abu Dhabi": 3500,
+    "Ras Al Khaimah": 3500,
+    "Fujairah": 3500,
+    "Dubai": 2500,
+    "Sharjah": 2000,
+    "Ajman": 2000,
+    "Umm Al Quwain": 2000
+}
+
+# Load product catalog from Google Sheets
 def load_catalog():
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -38,16 +52,7 @@ def load_catalog():
 
 PRODUCT_CATALOG = load_catalog()
 
-DELIVERY_CHARGES = {
-    "Abu Dhabi": 3500,
-    "Ras Al Khaimah": 3500,
-    "Fujairah": 3500,
-    "Dubai": 2500,
-    "Sharjah": 2000,
-    "Ajman": 2000,
-    "Umm Al Quwain": 2000
-}
-
+# Calculate total amount (product price * quantity + delivery charge)
 def calculate_total(product_id, quantity, location):
     product = PRODUCT_CATALOG.get(product_id)
     if not product:
@@ -57,6 +62,7 @@ def calculate_total(product_id, quantity, location):
     total = subtotal + delivery_charge
     return total
 
+# Create Stripe Checkout session
 def create_stripe_checkout_session(total, product_name, quantity):
     checkout_session = stripe.checkout.Session.create(
         payment_method_types=['card'],
@@ -76,6 +82,7 @@ def create_stripe_checkout_session(total, product_name, quantity):
     )
     return checkout_session.url
 
+# Send WhatsApp message using Interakt API
 def send_whatsapp_message(phone_number, customer_name, order_number, total, payment_link, product_name):
     headers = {
         'Authorization': f'Basic {INTERAKT_API_KEY}',
@@ -105,6 +112,7 @@ def send_whatsapp_message(phone_number, customer_name, order_number, total, paym
         print(f"Failed to send WhatsApp message: {e}")
         return False
 
+# Routes
 @app.route('/')
 def home():
     return "Welcome to the Flask Stripe App!"  
@@ -126,14 +134,21 @@ def process_order():
     phone = data['phone']
     customer_name = data['customer_name']
 
+    # Calculate total
     total = calculate_total(product_id, quantity, location)
     if total is None:
         return jsonify({"error": "Invalid product ID"}), 400
 
+    # Get product name
     product_name = PRODUCT_CATALOG[product_id]['title']
+
+    # Create Stripe checkout session
     checkout_url = create_stripe_checkout_session(total * 100, product_name, quantity)
 
+    # Generate order number
     order_number = f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    # Send WhatsApp message
     send_whatsapp_message(phone, customer_name, order_number, total, checkout_url, product_name)
 
     return jsonify({
